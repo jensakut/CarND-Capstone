@@ -85,7 +85,7 @@ class WaypointUpdater(object):
         self.finalWPS.waypoints = []
         for wpn in range(closesetPointN, closesetPointN+LOOKAHEAD_WPS):
             wp = self.allWPs[closesetPointN]
-            wp.twist.twist.linear.x = 10  # TODO Set other speed
+            # wp.twist.twist.linear.x = 10  # TODO Set other speed
             self.finalWPS.waypoints.append(wp)
 
         self.final_waypoints_pub.publish(self.finalWPS)
