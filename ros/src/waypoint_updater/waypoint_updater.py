@@ -38,12 +38,15 @@ class WaypointUpdater(object):
         # rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
+        self.close_waypointN_pub = rospy.Publisher('close_waypoint_n', Int32, queue_size=1)
 
         self.allWPs = None  # List for all track waypoints
 
         self.finalWPS = Lane()  # Prepare message for publication
         self.finalWPS.header.seq = 0
         self.finalWPS.header.frame_id = "/world"
+
+        self.closesetPointN = None
 
         rospy.spin()
 
@@ -53,42 +56,32 @@ class WaypointUpdater(object):
         if not self.allWPs:
             return
 
-        # Find next waypoint in direction of the car
-        closesetPointDist = float("inf")
-        closesetPointN = -1
-        # TODO: optimize search
-        for wpn in range(len(self.allWPs)):
-            d = self.length(self.allWPs[wpn].pose.pose.position, msg.pose.position)
-            if d < closesetPointDist:
-                closesetPointDist = d
-                closesetPointN = wpn
-        # rospy.loginfo("n: {}, x1: {}, y1: {}, xc: {}, yc: {}"\
-        #               .format(closesetPointN, self.allWPs[closesetPointN].pose.pose.position.x, \
-        #                 self.allWPs[closesetPointN].pose.pose.position.y, \
-        #                 msg.pose.position.x, msg.pose.position.y))
+        # Find closest waypoint near the car
+        self.closesetPointN = self.findClosestWaypoint(msg.pose.position, self.closesetPointN)
 
-        # Detect if we have already passed this point
-        v_path_x = self.allWPs[closesetPointN + 1].pose.pose.position.x - \
-                   self.allWPs[closesetPointN].pose.pose.position.x
-        v_path_y = self.allWPs[closesetPointN + 1].pose.pose.position.y - \
-                   self.allWPs[closesetPointN].pose.pose.position.y
-        c_path_x = msg.pose.position.x - self.allWPs[closesetPointN].pose.pose.position.x
-        c_path_y = msg.pose.position.y - self.allWPs[closesetPointN].pose.pose.position.y
-        # if dot product is more than zero we choose next waypoint:
-        dp = v_path_x*c_path_x + v_path_y*c_path_y
-        if dp > 0:
-            closesetPointN += 1
+        # Detect if we have already passed this point and choose next point in this case
+        if self.closesetPointN + 1 < len(self.allWPs):  # if this waypoint is not the last one
+            v_path_x = self.allWPs[self.closesetPointN + 1].pose.pose.position.x - \
+                   self.allWPs[self.closesetPointN].pose.pose.position.x
+            v_path_y = self.allWPs[self.closesetPointN + 1].pose.pose.position.y - \
+                   self.allWPs[self.closesetPointN].pose.pose.position.y
+            c_path_x = msg.pose.position.x - self.allWPs[self.closesetPointN].pose.pose.position.x
+            c_path_y = msg.pose.position.y - self.allWPs[self.closesetPointN].pose.pose.position.y
+            # if dot product is more than zero we choose next waypoint:
+            dp = v_path_x*c_path_x + v_path_y*c_path_y
+            if dp > 0:
+                self.closesetPointN = self.closesetPointN + 1
 
         # Update final waypoints message
         self.finalWPS.header.seq += 1
         self.finalWPS.header.stamp = rospy.rostime.Time().now()
         self.finalWPS.waypoints = []
-        for wpn in range(closesetPointN, closesetPointN+LOOKAHEAD_WPS):
+        for wpn in range(self.closesetPointN, min(self.closesetPointN+LOOKAHEAD_WPS, len(self.allWPs))):
             wp = self.allWPs[wpn]
-            # wp.twist.twist.linear.x = 10  # TODO Set other speed
             self.finalWPS.waypoints.append(wp)
 
         self.final_waypoints_pub.publish(self.finalWPS)
+        self.close_waypointN_pub.publish(self.closesetPointN)
 
     def waypoints_cb(self, waypoints):
         """Callback for '/base_waypoints' messages."""
@@ -120,6 +113,29 @@ class WaypointUpdater(object):
     #         dist += self.length(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
     #         wp1 = i
     #     return dist
+
+    def findClosestWaypoint(self, currentPosition, previousWayPointN = None):
+
+        closesetPointDist = float("inf")
+        closesetPointN = -1
+
+        if previousWayPointN is None:
+            previousWayPointN = 0
+
+        # Look for closest waypoint starting from previous closest waypoint upto ...
+        for wpn in range(previousWayPointN, len(self.allWPs)):
+            d = self.length(self.allWPs[wpn].pose.pose.position, currentPosition)
+            if d < closesetPointDist:
+                closesetPointDist = d
+                closesetPointN = wpn
+            else:   #  ... upto the moment when distance starts to invcrease
+                # rospy.loginfo("n: {}, x1: {}, y1: {}, xc: {}, yc: {}"\
+                #             .format(closesetPointN, self.allWPs[closesetPointN].pose.pose.position.x, \
+                #             self.allWPs[closesetPointN].pose.pose.position.y, \
+                #             msg.pose.position.x, msg.pose.position.y))
+                return closesetPointN
+        return closesetPointN
+
 
 
 if __name__ == '__main__':
