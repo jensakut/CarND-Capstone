@@ -6,7 +6,6 @@ from lowpass import LowPassFilter
 import rospy
 
 
-
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 
@@ -14,25 +13,35 @@ ONE_MPH = 0.44704
 class Controller(object):
     def __init__(self, carParams):
 
-        self.yawController = YawController(carParams['wheel_base'], carParams['steer_ratio'], 4,
+        # Create steering controller
+        self.yawController = YawController(carParams['wheel_base'], carParams['steer_ratio'], 0.1,
                                            carParams['max_lat_accel'], carParams['max_steer_angle'])
+        # Create throttle and brake controller
         self.velController = PID(0.8, 0.1, 0.1, mn=carParams['decel_limit'], mx=carParams['accel_limit'])
 
-        self.dLSFilter = LowPassFilter(0.2, 0.05)
-        self.dASFilter = LowPassFilter(0.2, 0.05)
+        # Filter for speed input
+        self.dLSFilter = LowPassFilter(0.5, 0.02)
+        # self.dASFilter = LowPassFilter(0.1, 0.02)
+
+        # previous iteration time
+        self.prevT = rospy.get_time()
         pass
 
     def control(self, desiredLinearSpeed, desiredAngularSpeed, curentSpeed):
 
-        # desiredLinearSpeed = abs(desiredLinearSpeed)
-
-        # desiredLinearSpeed = self.dLSFilter.filt(desiredLinearSpeed)
+        # Filter input value of desired speed
+        desiredLinearSpeed = self.dLSFilter.filt(desiredLinearSpeed)
         # desiredAngularSpeed = self.dASFilter.filt(desiredAngularSpeed)
 
-        # Run PID controller for acceleration and break control
-        acc = self.velController.step(desiredLinearSpeed - curentSpeed, 0.05)
-        # rospy.loginfo("DesV: {}, CurV: {}, diff: {}, pid: {}".format(desiredLinearSpeed, curentSpeed,
-        #                     desiredLinearSpeed-curentSpeed, acc))
+        # Calculate dt
+        t = rospy.get_time()
+        dt = t - self.prevT
+        self.prevT = t
+
+        # Run PID controller for throttle and break control
+        acc = self.velController.step(desiredLinearSpeed - curentSpeed, dt)
+        # rospy.loginfo("DesV: {}, CurV: {}, diff: {}, pid: {}, dt: {}".format(desiredLinearSpeed, curentSpeed,
+        #                     desiredLinearSpeed-curentSpeed, acc, dt))
         if (acc > 0):
             cThrottle = acc
             cBreak = 0
@@ -40,9 +49,8 @@ class Controller(object):
             cThrottle = 0
             cBreak = -acc
 
-        cSteer = self.yawController.get_steering(abs(desiredLinearSpeed), desiredAngularSpeed, curentSpeed)*0.1
-        # cSteer = desiredAngularSpeed
-        rospy.loginfo("steer: {}, DAS: {}, DLS: {}, CS: {}".format(cSteer, desiredAngularSpeed, desiredLinearSpeed, curentSpeed))
+        cSteer = self.yawController.get_steering(abs(desiredLinearSpeed), desiredAngularSpeed, curentSpeed)
+        # rospy.loginfo("steer: {}, DAS: {}, DLS: {}, CS: {}".format(cSteer, desiredAngularSpeed, desiredLinearSpeed, curentSpeed))
 
         # Return throttle, brake, steer
         return cThrottle, cBreak, cSteer

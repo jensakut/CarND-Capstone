@@ -8,6 +8,9 @@ import math
 
 from twist_controller import Controller
 
+
+# import rospy
+
 '''
 You can build this node only after you have built (or partially built) the `waypoint_updater` node.
 
@@ -36,17 +39,17 @@ class DBWNode(object):
         rospy.init_node('dbw_node')
 
         # Get car parameters
-        carParams = {}
-        carParams['vehicle_mass'] = rospy.get_param('~vehicle_mass', 1736.35)
-        carParams['fuel_capacity'] = rospy.get_param('~fuel_capacity', 13.5)
-        carParams['brake_deadband'] = rospy.get_param('~brake_deadband', .1)
-        carParams['decel_limit'] = rospy.get_param('~decel_limit', -5)
-        carParams['accel_limit'] = rospy.get_param('~accel_limit', 1.)
-        carParams['wheel_radius'] = rospy.get_param('~wheel_radius', 0.2413)
-        carParams['wheel_base'] = rospy.get_param('~wheel_base', 2.8498)
-        carParams['steer_ratio'] = rospy.get_param('~steer_ratio', 14.8)
-        carParams['max_lat_accel'] = rospy.get_param('~max_lat_accel', 3.)
-        carParams['max_steer_angle'] = rospy.get_param('~max_steer_angle', 8.)
+        self.carParams = {}
+        self.carParams['vehicle_mass'] = rospy.get_param('~vehicle_mass', 1736.35)
+        self.carParams['fuel_capacity'] = rospy.get_param('~fuel_capacity', 13.5)
+        self.carParams['brake_deadband'] = rospy.get_param('~brake_deadband', .1)
+        self.carParams['decel_limit'] = rospy.get_param('~decel_limit', -5)
+        self.carParams['accel_limit'] = rospy.get_param('~accel_limit', 1.)
+        self.carParams['wheel_radius'] = rospy.get_param('~wheel_radius', 0.2413)
+        self.carParams['wheel_base'] = rospy.get_param('~wheel_base', 2.8498)
+        self.carParams['steer_ratio'] = rospy.get_param('~steer_ratio', 14.8)
+        self.carParams['max_lat_accel'] = rospy.get_param('~max_lat_accel', 3.)
+        self.carParams['max_steer_angle'] = rospy.get_param('~max_steer_angle', 8.)
 
         # Create all publishers
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd', SteeringCmd, queue_size=1)
@@ -59,7 +62,7 @@ class DBWNode(object):
         rospy.Subscriber('/current_velocity', TwistStamped, self.cVelocity_cb)
 
         # Create `Controller` object
-        self.controller = Controller(carParams)
+        self.controller = Controller(self.carParams)
 
         # Set init values
         self.dbwEnable = False
@@ -83,7 +86,7 @@ class DBWNode(object):
             #                                                     <any other argument you need>)
 
             # Convert break value to N*m
-            brake *= self.vehicle_mass*self.wheel_radius
+            brake *= self.carParams['vehicle_mass']*self.carParams['wheel_radius']
             # Set hold brake value
             if abs(self.desiredLinearSpeed) < 0.1:
                 brake = 700
@@ -115,6 +118,7 @@ class DBWNode(object):
     def twist_cb(self, twistStamped):
         self.desiredLinearSpeed = twistStamped.twist.linear.x
         self.desiredAngularSpeed = twistStamped.twist.angular.z
+        # rospy.loginfo("DLS: {}, DAS: {}".format(self.desiredLinearSpeed, self.desiredAngularSpeed))
         pass
 
     def dbwenable_cb(self, enable):
