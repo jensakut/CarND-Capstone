@@ -38,6 +38,7 @@ class WaypointUpdater(object):
         # rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
+        self.close_waypointN_pub = rospy.Publisher('close_waypoint_n', Int32, queue_size=1)
 
         self.allWPs = None  # List for all track waypoints
 
@@ -80,6 +81,7 @@ class WaypointUpdater(object):
             self.finalWPS.waypoints.append(wp)
 
         self.final_waypoints_pub.publish(self.finalWPS)
+        self.close_waypointN_pub.publish(self.closesetPointN)
 
     def waypoints_cb(self, waypoints):
         """Callback for '/base_waypoints' messages."""
