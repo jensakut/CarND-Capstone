@@ -84,7 +84,7 @@ class WaypointUpdater(object):
         self.finalWPS.header.stamp = rospy.rostime.Time().now()
         self.finalWPS.waypoints = []
         for wpn in range(closesetPointN, closesetPointN+LOOKAHEAD_WPS):
-            wp = self.allWPs[closesetPointN]
+            wp = self.allWPs[wpn]
             # wp.twist.twist.linear.x = 10  # TODO Set other speed
             self.finalWPS.waypoints.append(wp)
 
