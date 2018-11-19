@@ -24,9 +24,11 @@ class TLDetector(object):
         self.lights = []
         self.lights_wp = []
         self.lights_wp_init = False
+        self.car_wp_idx = -1
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        sub4 = rospy.Subscriber('/close_waypoint_n', Int32, self.car_waypoint_cb)
 
         '''
         /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
@@ -62,6 +64,9 @@ class TLDetector(object):
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
+
+    def car_waypoint_cb(self, wp_idx):
+        self.car_wp_idx = wp_idx.data
 
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
@@ -175,8 +180,8 @@ class TLDetector(object):
         closest_light = None
         line_wp_idx = None
 
-        if self.pose and self.lights_wp_init:
-            car_wp_idx = self.get_closest_waypoint(self.pose.pose)
+        car_wp_idx = self.car_wp_idx
+        if self.pose and self.lights_wp_init and car_wp_idx >= 0:
 
             #TODO find the closest visible traffic light (if one exists)
             diff = len(self.waypoints.waypoints)
