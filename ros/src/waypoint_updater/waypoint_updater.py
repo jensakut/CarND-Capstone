@@ -137,15 +137,17 @@ class WaypointUpdater(object):
         closesetPointN = -1
 
         if previousWayPointN is None:
-            previousWayPointN = 0
+            startSearchWayPointN = 0
+        else:
+            startSearchWayPointN = previousWayPointN
 
         # Look for closest waypoint starting from previous closest waypoint upto ...
-        for wpn in range(previousWayPointN, len(self.allWPs)):
+        for wpn in range(startSearchWayPointN, len(self.allWPs)):
             d = self.length(self.allWPs[wpn].pose.pose.position, currentPosition)
             if d < closesetPointDist:
                 closesetPointDist = d
                 closesetPointN = wpn
-            else:   #  ... upto the moment when distance starts to increase
+            elif previousWayPointN is not None:  # ... upto the moment when distance starts to increase or till the end
                 # rospy.loginfo("n: {}, x1: {}, y1: {}, xc: {}, yc: {}"\
                 #             .format(closesetPointN, self.allWPs[closesetPointN].pose.pose.position.x, \
                 #             self.allWPs[closesetPointN].pose.pose.position.y, \
