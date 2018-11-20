@@ -93,6 +93,10 @@ class DBWNode(object):
                     brake = max(brake, 700)
                     steering = 0  # prevent from unnecessary steering
 
+                # Prevent car from driving too slow before stop
+                if brake < 200:
+                    brake = 0
+
                 # Publish the control commands
                 self.publish(throttle, brake, steering)
 
