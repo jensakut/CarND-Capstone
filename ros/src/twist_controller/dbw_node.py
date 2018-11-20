@@ -78,21 +78,26 @@ class DBWNode(object):
 
         while not rospy.is_shutdown():
 
-            # Get predicted throttle, brake, and steering using `twist_controller`
-            throttle, brake, steering = self.controller.control(self.desiredLinearSpeed,
+            if self.dbwEnable:
+
+                # Get predicted throttle, brake, and steering using `twist_controller`
+                throttle, brake, steering = self.controller.control(self.desiredLinearSpeed,
                                                                 self.desiredAngularSpeed,
                                                                 self.curentSpeed)
-            #                                                     <dbw status>,
-            #                                                     <any other argument you need>)
 
-            # Convert break value to N*m
-            brake *= self.carParams['vehicle_mass']*self.carParams['wheel_radius']
-            # Set hold brake value
-            if abs(self.desiredLinearSpeed) < 0.1:
-                brake = 700
+                # Convert break value to N*m
+                brake *= self.carParams['vehicle_mass']*self.carParams['wheel_radius']
 
-            # Publish the control commands if dbw is enabled
-            if self.dbwEnable:
+                # Set hold brake value
+                if abs(self.desiredLinearSpeed) < 0.1:
+                    brake = max(brake, 700)
+                    steering = 0  # prevent from unnecessary steering
+
+                # Prevent car from driving too slow before stop
+                if brake < 200:
+                    brake = 0
+
+                # Publish the control commands
                 self.publish(throttle, brake, steering)
 
             rate.sleep()
@@ -122,6 +127,8 @@ class DBWNode(object):
         pass
 
     def dbwenable_cb(self, enable):
+        if not enable and self.dbwEnable:
+            self.controller.reset()  # reset controller if car switched to manual mode
         self.dbwEnable = enable
 
     def cVelocity_cb(self, twistStamped):

@@ -4,8 +4,10 @@ import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
+from geometry_msgs.msg import TwistStamped
 
 import math
+import copy
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -33,9 +35,8 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
-        # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-        # rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.cVelocity_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
         self.close_waypointN_pub = rospy.Publisher('close_waypoint_n', Int32, queue_size=1)
@@ -45,6 +46,8 @@ class WaypointUpdater(object):
         self.finalWPS = Lane()  # Prepare message for publication
         self.finalWPS.header.seq = 0
         self.finalWPS.header.frame_id = "/world"
+        self.trafficWPStopN = -1
+        self.traficStopDist = 50
 
         self.closesetPointN = None
 
@@ -78,6 +81,16 @@ class WaypointUpdater(object):
         self.finalWPS.waypoints = []
         for wpn in range(self.closesetPointN, min(self.closesetPointN+LOOKAHEAD_WPS, len(self.allWPs))):
             wp = self.allWPs[wpn]
+            # if there are red light in front we update waypoint speeds accordingly
+            if self.trafficWPStopN >= self.closesetPointN:  # set stop speed
+                if self.trafficWPStopN - wpn > self.traficStopDist:
+                    wp.twist.twist.linear.x = self.originalSpeeds[wpn]
+                elif self.trafficWPStopN > wpn:  # linear decrease speed of close points
+                    wp.twist.twist.linear.x = self.originalSpeeds[wpn] * (self.trafficWPStopN - wpn) / self.traficStopDist
+                else:
+                    wp.twist.twist.linear.x = 0  # set speed of far points to 0
+            else:
+                wp.twist.twist.linear.x = self.originalSpeeds[wpn]  # restore original speed value
             self.finalWPS.waypoints.append(wp)
 
         self.final_waypoints_pub.publish(self.finalWPS)
@@ -85,12 +98,16 @@ class WaypointUpdater(object):
 
     def waypoints_cb(self, waypoints):
         """Callback for '/base_waypoints' messages."""
-
+        # Copy original speeds
+        self.originalSpeeds = [wp.twist.twist.linear.x for wp in waypoints.waypoints]
         self.allWPs = waypoints.waypoints
 
     def traffic_cb(self, msg):
-        # TODO: Callback for /traffic_waypoint message. Implement
+        self.trafficWPStopN = msg.data - 4
         pass
+
+    def cVelocity_cb(self, twistStamped):
+        self.curentSpeed = twistStamped.twist.linear.x
 
     # def obstacle_cb(self, msg):
     #     # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -120,15 +137,17 @@ class WaypointUpdater(object):
         closesetPointN = -1
 
         if previousWayPointN is None:
-            previousWayPointN = 0
+            startSearchWayPointN = 0
+        else:
+            startSearchWayPointN = previousWayPointN
 
         # Look for closest waypoint starting from previous closest waypoint upto ...
-        for wpn in range(previousWayPointN, len(self.allWPs)):
+        for wpn in range(startSearchWayPointN, len(self.allWPs)):
             d = self.length(self.allWPs[wpn].pose.pose.position, currentPosition)
             if d < closesetPointDist:
                 closesetPointDist = d
                 closesetPointN = wpn
-            else:   #  ... upto the moment when distance starts to invcrease
+            elif previousWayPointN is not None:  # ... upto the moment when distance starts to increase or till the end
                 # rospy.loginfo("n: {}, x1: {}, y1: {}, xc: {}, yc: {}"\
                 #             .format(closesetPointN, self.allWPs[closesetPointN].pose.pose.position.x, \
                 #             self.allWPs[closesetPointN].pose.pose.position.y, \

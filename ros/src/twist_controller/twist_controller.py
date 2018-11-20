@@ -54,3 +54,6 @@ class Controller(object):
 
         # Return throttle, brake, steer
         return cThrottle, cBreak, cSteer
+
+    def reset(self):
+        self.velController.reset()
