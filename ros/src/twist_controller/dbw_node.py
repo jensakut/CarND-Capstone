@@ -87,9 +87,11 @@ class DBWNode(object):
 
             # Convert break value to N*m
             brake *= self.carParams['vehicle_mass']*self.carParams['wheel_radius']
+
             # Set hold brake value
             if abs(self.desiredLinearSpeed) < 0.1:
-                brake = 700
+                brake = max(brake, 700)
+                steering = 0  # prevent from unnecessary steering
 
             # Publish the control commands if dbw is enabled
             if self.dbwEnable:
