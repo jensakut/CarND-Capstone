@@ -47,7 +47,8 @@ class WaypointUpdater(object):
         self.finalWPS.header.seq = 0
         self.finalWPS.header.frame_id = "/world"
         self.trafficWPStopN = -1
-        self.traficStopDist = 50
+        self.brakeDist = 30.
+        self.traficLineStopDist = 3.
 
         self.closesetPointN = None
 
@@ -78,20 +79,28 @@ class WaypointUpdater(object):
         # Update final waypoints message
         self.finalWPS.header.seq += 1
         self.finalWPS.header.stamp = rospy.rostime.Time().now()
-        self.finalWPS.waypoints = []
-        for wpn in range(self.closesetPointN, min(self.closesetPointN+LOOKAHEAD_WPS, len(self.allWPs))):
-            wp = self.allWPs[wpn]
-            # if there are red light in front we update waypoint speeds accordingly
-            if self.trafficWPStopN >= self.closesetPointN:  # set stop speed
-                if self.trafficWPStopN - wpn > self.traficStopDist:
-                    wp.twist.twist.linear.x = self.originalSpeeds[wpn]
-                elif self.trafficWPStopN > wpn:  # linear decrease speed of close points
-                    wp.twist.twist.linear.x = self.originalSpeeds[wpn] * (self.trafficWPStopN - wpn) / self.traficStopDist
+        self.finalWPS.waypoints = self.allWPs[self.closesetPointN : min(self.closesetPointN+LOOKAHEAD_WPS, len(self.allWPs))]
+        # if there are traffic light ahead we turn on speed control
+        if self.trafficWPStopN >= self.closesetPointN:
+            for wpn in range(len(self.finalWPS.waypoints)-1, -1, -1):
+                if wpn + self.closesetPointN >= self.trafficWPStopN:
+                    self.finalWPS.waypoints[wpn].twist.twist.linear.x = 0  # set speed of points after stop line to 0
                 else:
-                    wp.twist.twist.linear.x = 0  # set speed of far points to 0
-            else:
-                wp.twist.twist.linear.x = self.originalSpeeds[wpn]  # restore original speed value
-            self.finalWPS.waypoints.append(wp)
+                    distanceToStopLine = self.dists[self.trafficWPStopN] - self.dists[wpn + self.closesetPointN]
+                    # set speed of few points before stop line to 0
+                    if distanceToStopLine < self.traficLineStopDist:
+                        self.finalWPS.waypoints[wpn].twist.twist.linear.x = 0
+                    # set speed of points farther than self.brakeDist + self.traficLineStopDist to original value
+                    elif distanceToStopLine > self.brakeDist + self.traficLineStopDist :
+                        self.finalWPS.waypoints[wpn].twist.twist.linear.x = self.originalSpeeds[wpn+self.closesetPointN]
+                    # Set other points speed proportional to distance to stop point
+                    else:
+                        self.finalWPS.waypoints[wpn].twist.twist.linear.x = \
+                            self.originalSpeeds[wpn+self.closesetPointN] * (distanceToStopLine - self.traficLineStopDist) / self.brakeDist
+        # if there are no traffic light ahead we restore original speed value
+        else:
+            for wpn in range(len(self.finalWPS.waypoints)):
+                self.finalWPS.waypoints[wpn].twist.twist.linear.x = self.originalSpeeds[wpn+self.closesetPointN]
 
         self.final_waypoints_pub.publish(self.finalWPS)
         self.close_waypointN_pub.publish(self.closesetPointN)
@@ -100,10 +109,16 @@ class WaypointUpdater(object):
         """Callback for '/base_waypoints' messages."""
         # Copy original speeds
         self.originalSpeeds = [wp.twist.twist.linear.x for wp in waypoints.waypoints]
+
+        # Calculate cumulative distances for all points
+        self.dists = [0]
+        for wpn in range(1, len(waypoints.waypoints)):
+            self.dists.append(self.dists[-1] + self.length(waypoints.waypoints[wpn].pose.pose.position,
+                                                           waypoints.waypoints[wpn-1].pose.pose.position))
         self.allWPs = waypoints.waypoints
 
     def traffic_cb(self, msg):
-        self.trafficWPStopN = msg.data - 4
+        self.trafficWPStopN = msg.data
         pass
 
     def cVelocity_cb(self, twistStamped):
