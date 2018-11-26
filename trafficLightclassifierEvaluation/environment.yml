@@ -1,0 +1,23 @@
+name: object-detection
+channels:
+    - https://conda.anaconda.org/menpo
+    - conda-forge
+dependencies:
+    - python==3.6
+    - numpy
+    - matplotlib
+    - jupyter
+    - pillow
+    - scipy
+    - ffmpeg
+    - imageio==2.1.2
+    - tensorflow-gpu==1.4.1
+    - keras==2.0.8
+    - pip:
+        - moviepy
+	- Cython
+	- contextlib2
+	- jupyter
+	- pillow
+	- lxml
+	

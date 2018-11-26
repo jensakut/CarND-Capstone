@@ -4,3 +4,12 @@ build
 devel
 
 profile.tmp
+
+
+trafficlightclassifier/cocoapi/*
+
+trafficlightclassifier/models/*
+trafficlightclassifier/dataset/*
+trafficlightclassifier/inference*/*
+
+trafficlightclassifier/train*/* 
