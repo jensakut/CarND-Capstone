@@ -62,8 +62,22 @@ System components communication i based on [ROS](http://www.ros.org/) communicat
 
 ### Perception subsystem
 
-This part will be written later.
+There are two versions of perception subsystem: the one used for simulator-generated data and the one used on site.
 
+Perception subsystem used for simulator-generated data has a signle node:
+
+1. Traffic lights detection node - looks for traafic lights in images provided by camera.
+
+The approach used in traffic lights detection node is based on OpenCV approach. Firstly, obtained image is converted to `HSV` color scheme. Then all pixels that are not red enough 
+are dropped. Pixels that are left are used as a mask on a grayscale image. Hough transform is then used to detect circles in this image. In case one o more circles are detected we publish
+status that traffic lights are red. In case no circles are detected we use the same apporoch to detect yellow traffic lights (as yellow traffic lights are used in planning subsytem as 
+well). Green lights are not detected as it is of no significance for planning subsystem.
+
+To determine which one of traffic lights is closest to our car and ahecd of it waypoints are used. We precompute a closest waypoint to each of traffic lights and are subscribed to
+current closest to the car waypoint. As waypoints are ordered we can determine which one of precomputed traffic lights waypoints is the closest to the car and ahead of it.
+We publish this waypoint number with traffic lights status for our car to determine at which waypoint it should stop in case of red (or yellow) traffic lights.
+
+Description of perception subsystem used on site will be written later.
 
 ### Planning subsystem
 
